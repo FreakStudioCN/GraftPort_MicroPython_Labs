@@ -86,6 +86,8 @@ def _clear_dynamic_area():
 def send_next():
     """发送一个字母并设置发送完成标志（不在此处直接更新 OLED）"""
     global tx_index, last_tx_time, tx_pending, tx_letter
+    if tx_index is None:
+        return
     # 更新用于自动发送间隔的时间戳
     last_tx_time = time.ticks_ms()
 
@@ -98,7 +100,6 @@ def send_next():
     tx_pending = True
 
     print("IR Sent:", letter)
-    tx_index = (tx_index + 1) % 4
 
 def ir_callback(addr, cmd, repeat):
     """红外接收回调：仅设置标志与接收数据，由主循环更新 OLED"""
@@ -192,6 +193,14 @@ print("All peripherals initialized.")
 # ========================================  主程序  ===========================================
 while True:
     now = time.ticks_ms()
+
+    tmp = list(bin(pcf8574.port))[2:]
+    tmp.reverse()
+    tmp = [i for i, b in enumerate(tmp) if b == '0']
+    if tmp ==  []:
+        tx_index = None
+    else:
+        tx_index = tmp[0]
 
     # 每 3 秒触发一次发送（保持你原来的发送节奏）
     if time.ticks_diff(now, last_tx_time) > 3000:
