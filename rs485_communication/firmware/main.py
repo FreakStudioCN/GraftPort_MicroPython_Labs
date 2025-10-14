@@ -20,13 +20,13 @@ from conf import *
 # 导入lib文件夹下面自定义库
 from libs.scheduler import Scheduler, Task
 # 导入drivers文件夹下面传感器模块驱动库
-from drivers.hc14_driver import HC14_Lora
+from drivers.ttl_rs485_driver import TTL_RS485
 from drivers.pcf8574_driver import PCF8574, SSD1306_I2C
 
 #  导入tasks文件夹下面任务模块
 from tasks.maintenance import task_idle_callback, task_err_callback
 from tasks.maintenance import GC_THRESHOLD_BYTES, ERROR_REPEAT_DELAY_S
-from tasks.lora_task import LoraTask
+from tasks.rs_task import RSTask
 
 # ======================================== 全局变量 ============================================
 
@@ -220,8 +220,8 @@ uart1_tx, uart1_rx = board.get_uart_pins(1)
 uart0 = UART(0, baudrate=9600, tx=Pin(uart0_tx), rx=Pin(uart0_rx))
 uart1 = UART(1, baudrate=9600, tx=Pin(uart1_tx), rx=Pin(uart1_rx))
 
-hc14_tx = HC14_Lora(uart0)
-hc14_rx = HC14_Lora(uart1)
+rs_tx = TTL_RS485(uart0)
+rs_rx = TTL_RS485(uart1)
 
 # 获取I2C0 I2C1的引脚编号
 i2c0_sda_pin , i2c0_scl_pin = board.get_i2c_pins(0)
@@ -236,17 +236,6 @@ ssd1306 = i2c_valid(i2c1, SSD1306_ADDR)
 pcf8574 = PCF8574(i2c0, pcf8574[0])
 ssd1306 = SSD1306_I2C(i2c1, ssd1306[0], 128, 64, False)
 
-_press(ssd1306)
-
-while True:
-    if hc14_tx.test_comm()[0] and hc14_rx.test_comm()[0]:
-        if hc14_tx.set_rate(7)[0] and hc14_rx.set_rate(7)[0] and hc14_tx.set_channel(1)[0] and hc14_rx.set_channel(1)[0]:
-            if (hc14_tx.get_rate()[1] == '7') and (hc14_rx.get_rate()[1] == '7') and (hc14_tx.get_channel()[1] == '1') and (hc14_rx.get_channel()[1] == '1'):
-                _unpress(ssd1306)
-                break
-    time.sleep(0.5)
-
-time.sleep(2)
 _init_display(ssd1306)
 
 # 输出调试消息
@@ -257,7 +246,7 @@ print("GC threshold:", GC_THRESHOLD_BYTES)
 print("Error repeat delay:", ERROR_REPEAT_DELAY_S)
 
 # 创建传感器-蜂鸣器-LED任务实例
-task_obj = LoraTask(pcf8574, ssd1306, hc14_tx, hc14_rx)
+task_obj = RSTask(pcf8574, ssd1306, rs_tx, rs_rx)
 sensor_task = Task(task_obj.tick, interval=2000,  state=Task.TASK_RUN)
 
 # 创建任务调度器,定时周期为50ms

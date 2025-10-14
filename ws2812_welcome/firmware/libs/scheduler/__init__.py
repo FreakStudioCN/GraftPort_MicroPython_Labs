@@ -1,23 +1,35 @@
 # Python env   : MicroPython v1.23.0
 # -*- coding: utf-8 -*-        
-# @Time    : 2025/9/9 下午11:19   
+# @Time    : 2025/9/9 下午10:43   
 # @Author  : 李清水            
-# @File    : __init__.py
-# @Description : drivers 包初始化，提供统一入口，按需导入子模块。
+# @File    : __init__.py       
+# @Description : 将 code 中的 Task 与 Scheduler 暴露到包顶层，方便导入使用。
 # @License : CC BY-NC 4.0
 
 # ======================================== 导入相关模块 =========================================
 
-# 显式导出子包或子模块
-from . import ttl_rs485_driver
-from . import pcf8574_driver
+# 将调度器核心类导出到包顶层
+from .scheduler import (
+    Task,
+    Scheduler,
+    __version__,
+    __author__,
+    __license__,
+    __platform__,
+    __chip__,
+)
 
 # ======================================== 全局变量 ============================================
 
-# 定义对外可访问的接口（子模块名称）
+# 对外接口
 __all__ = [
-    "ttl_rs485_driver",
-    "pcf8574_driver",
+    "Task",
+    "Scheduler",
+    "__version__",
+    "__author__",
+    "__license__",
+    "__platform__",
+    "__chip__",
 ]
 
 # ======================================== 功能函数 ============================================

@@ -9,7 +9,7 @@
 # ======================================== 导入相关模块 =========================================
 
 # 导入硬件相关模块
-from machine import UART, Pin, Timer
+from machine import Pin, Timer, I2C
 # 导入时间相关模块
 import time
 
@@ -21,14 +21,16 @@ from conf import *
 from libs.scheduler import Scheduler, Task
 # 导入drivers文件夹下面传感器模块驱动库
 from drivers.neopixel_matrix_driver import NeopixelMatrix
-from drivers.serial_imu_driver import IMU
+from drivers.vl53l0x_driver import VL53L0X
 
 #  导入tasks文件夹下面任务模块
 from tasks.maintenance import task_idle_callback, task_err_callback
 from tasks.maintenance import GC_THRESHOLD_BYTES, ERROR_REPEAT_DELAY_S
-from tasks.imu_task import ImuTask
+from tasks.tof_task import TofTask
 
 # ======================================== 全局变量 ============================================
+
+I2C_FREQ = 100_000
 
 # ======================================== 功能函数 ============================================
 
@@ -161,12 +163,13 @@ button_pin = board.get_fixed_pin("BUTTON")
 button = Pin(button_pin, Pin.IN, Pin.PULL_UP)
 button.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
-uart0_tx, uart0_rx = board.get_uart_pins(0)
-uart0 = UART(0, baudrate=115200, tx=Pin(uart0_tx), rx=Pin(uart0_rx))
-imu = IMU(uart0)
+# 获取I2C0 I2C1的引脚编号
+i2c0_sda_pin , i2c0_scl_pin = board.get_i2c_pins(0)
+i2c0 = I2C(id = 0, scl = i2c0_scl_pin, sda = i2c0_sda_pin, freq = I2C_FREQ)
+tof = VL53L0X(i2c0)
 
 _, pin = board.get_dio_pins(0)
-nm = NeopixelMatrix(8, 8, Pin(pin), 'row', 0.5)
+nm = NeopixelMatrix(8, 8, Pin(pin), 'row', 0.1)
 nm.fill(0)
 nm.show()
 
@@ -178,14 +181,16 @@ print("GC threshold:", GC_THRESHOLD_BYTES)
 print("Error repeat delay:", ERROR_REPEAT_DELAY_S)
 
 # 创建传感器-蜂鸣器-LED任务实例
-task_obj = ImuTask(imu, nm)
-sensor_task = Task(task_obj.tick, interval=50,  state=Task.TASK_RUN)
+task_obj = TofTask(tof, nm)
+sensor_task = Task(task_obj.tick, interval=200,  state=Task.TASK_RUN)
+reset_task = Task(task_obj.reset, interval=1000,  state=Task.TASK_RUN)
 
 # 创建任务调度器,定时周期为50ms
-sc = Scheduler(Timer(-1), interval=10, task_idle=task_idle_callback, task_err=task_err_callback)
+sc = Scheduler(Timer(-1), interval=50, task_idle=task_idle_callback, task_err=task_err_callback)
 
 # 添加任务
 sc.add(sensor_task)
+sc.add(reset_task)
 
 # 根据 AUTO_START 决定是否立即运行
 if not AUTO_START:

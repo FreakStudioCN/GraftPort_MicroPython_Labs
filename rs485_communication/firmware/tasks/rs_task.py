@@ -16,8 +16,8 @@ import time
 
 # ======================================== 自定义类 ============================================
 
-class LoraTask:
-    def __init__(self, pcf8574, ssd1306, hc14_tx, hc14_rx):
+class RSTask:
+    def __init__(self, pcf8574, ssd1306, rs_tx, rs_rx):
         """构造参数:
         lora: HC14_Lora 实例（须提供发送/接收方法，代码中做了兼容处理）
         pcf8574: PCF8574 实例（需暴露 port 或 read()）
@@ -25,8 +25,8 @@ class LoraTask:
         """
         self.pcf8574 = pcf8574
         self.ssd1306 = ssd1306
-        self.hc14_tx = hc14_tx
-        self.hc14_rx = hc14_rx
+        self.rs_tx = rs_tx
+        self.rs_rx = rs_rx
 
     def _update_tx_display(self, text):
         # 清除 TX 区再写入
@@ -53,10 +53,10 @@ class LoraTask:
         
         if tx_index is None:
             return
-        self.hc14_tx.transparent_send(f'01{tx_index}'.encode())
+        self.rs_tx.send(f'01{tx_index}'.encode())
         self._update_tx_display(chr(ord('a') + tx_index))
         time.sleep(0.2)
-        resp = self.hc14_rx.transparent_recv(timeout_ms=500, quiet_ms=200)[1].decode('utf-8')
+        resp = self.rs_rx.read(timeout_ms=500).decode('utf-8')
         if resp[:2] == '01':
             self._update_rx_display(chr(ord('a') + int(resp[2])))
 

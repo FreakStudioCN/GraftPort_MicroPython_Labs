@@ -1,24 +1,24 @@
 # Python env   : MicroPython v1.23.0
 # -*- coding: utf-8 -*-        
-# @Time    : 2025/9/9 下午11:19   
+# @Time    : 2025/9/9 下午10:08   
 # @Author  : 李清水            
-# @File    : __init__.py
-# @Description : drivers 包初始化，提供统一入口，按需导入子模块。
+# @File    : boot.py       
+# @Description : 启动文件示例，启动时点亮板载 LED 1 秒后关闭
 # @License : CC BY-NC 4.0
 
 # ======================================== 导入相关模块 =========================================
 
-# 显式导出子包或子模块
-from . import ttl_rs485_driver
-from . import pcf8574_driver
+# 导入硬件相关模块
+import time
+from machine import Pin
+
+# 导入自定义板级模块
+import board
 
 # ======================================== 全局变量 ============================================
 
-# 定义对外可访问的接口（子模块名称）
-__all__ = [
-    "ttl_rs485_driver",
-    "pcf8574_driver",
-]
+# 获取板载 LED 引脚
+led_pin = board.get_fixed_pin("LED")
 
 # ======================================== 功能函数 ============================================
 
@@ -26,4 +26,17 @@ __all__ = [
 
 # ======================================== 初始化配置 ==========================================
 
+# 初始化 Pin
+led = Pin(led_pin, Pin.OUT)
+
 # ========================================  主程序  ===========================================
+
+# 点亮 LED
+led.value(1)
+# 点亮 1 秒
+time.sleep(1)
+
+# 熄灭 LED
+led.value(0)
+
+print("boot.py executed: LED flashed for 1 second")
