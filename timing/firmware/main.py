@@ -26,7 +26,7 @@ from drivers.pcf8574_driver import SSD1306_I2C
 #  导入tasks文件夹下面任务模块
 from tasks.maintenance import task_idle_callback, task_err_callback
 from tasks.maintenance import GC_THRESHOLD_BYTES, ERROR_REPEAT_DELAY_S
-from tasks.lora_task import LoraTask
+from tasks.time_task import TimeTask
 
 # ======================================== 全局变量 ============================================
 
@@ -148,14 +148,6 @@ def button_handler(pin: Pin) -> None:
         if ENABLE_DEBUG:
             print("task_sensor resumed")
 
-# 显示相关
-def _init_display(ssd1306):
-    ssd1306.fill(0)
-    ssd1306.text("GXCZD", 45, 0)
-    ssd1306.text("TX:", 0, 40)
-    ssd1306.text("RX:", 0, 52)
-    ssd1306.show()
-
 def i2c_valid(i2c, correct_addrs):
     # 尝试初始化I2C外设上的传感器模块
     for attempt in range(1, I2C_INIT_MAX_ATTEMPTS + 1):
@@ -203,6 +195,12 @@ button_pin = board.get_fixed_pin("BUTTON")
 button = Pin(button_pin, Pin.IN, Pin.PULL_UP)
 button.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
+stop, _ = board.get_dio_pins(0)
+stop = Pin(stop, Pin.IN)
+
+buzzer, _ = board.get_dio_pins(1)
+buzzer = Pin(buzzer, Pin.OUT)
+
 # 获取I2C0 I2C1的引脚编号
 i2c0_sda_pin , i2c0_scl_pin = board.get_i2c_pins(0)
 i2c1_sda_pin , i2c1_scl_pin = board.get_i2c_pins(1)
@@ -216,8 +214,6 @@ ssd1306 = i2c_valid(i2c1, SSD1306_ADDR)
 ds1307 = DS1307(i2c0, ds1307[0])
 ssd1306 = SSD1306_I2C(i2c1, ssd1306[0], 128, 64, False)
 
-_init_display(ssd1306)
-
 # 输出调试消息
 print("All peripherals initialized.")
 
@@ -225,4 +221,23 @@ print("All peripherals initialized.")
 print("GC threshold:", GC_THRESHOLD_BYTES)
 print("Error repeat delay:", ERROR_REPEAT_DELAY_S)
 
-print(ds1307.datetime)
+# 创建传感器-蜂鸣器-LED任务实例
+task_obj = TimeTask(ds1307, ssd1306, stop, buzzer)
+sensor_task = Task(task_obj.second, interval=1000,  state=Task.TASK_RUN)
+alarm_task = Task(task_obj.alarm, interval=5000,  state=Task.TASK_RUN)
+
+# 创建任务调度器,定时周期为50ms
+sc = Scheduler(Timer(-1), interval=50, task_idle=task_idle_callback, task_err=task_err_callback)
+
+# 添加任务
+sc.add(sensor_task)
+sc.add(alarm_task)
+
+# 根据 AUTO_START 决定是否立即运行
+if not AUTO_START:
+    sc.pause(sensor_task)
+
+# ========================================  主程序  ===========================================
+
+# 开启调度
+sc.scheduler()
