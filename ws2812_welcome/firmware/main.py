@@ -167,9 +167,10 @@ button.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 i2c0_sda_pin , i2c0_scl_pin = board.get_i2c_pins(0)
 i2c0 = I2C(id = 0, scl = i2c0_scl_pin, sda = i2c0_sda_pin, freq = I2C_FREQ)
 tof = VL53L0X(i2c0)
+tof.start()
 
 _, pin = board.get_dio_pins(0)
-nm = NeopixelMatrix(8, 8, Pin(pin), 'row', 0.1)
+nm = NeopixelMatrix(8, 8, Pin(pin), 'row', 0.1, flip_h=True, flip_v=True)
 nm.fill(0)
 nm.show()
 
@@ -182,11 +183,11 @@ print("Error repeat delay:", ERROR_REPEAT_DELAY_S)
 
 # 创建传感器-蜂鸣器-LED任务实例
 task_obj = TofTask(tof, nm)
-sensor_task = Task(task_obj.tick, interval=200,  state=Task.TASK_RUN)
-reset_task = Task(task_obj.reset, interval=1000,  state=Task.TASK_RUN)
+sensor_task = Task(task_obj.tick, interval=100,  state=Task.TASK_RUN)
+reset_task = Task(task_obj.reset, interval=10000,  state=Task.TASK_RUN)
 
 # 创建任务调度器,定时周期为50ms
-sc = Scheduler(Timer(-1), interval=50, task_idle=task_idle_callback, task_err=task_err_callback)
+sc = Scheduler(Timer(-1), interval=20, task_idle=task_idle_callback, task_err=task_err_callback)
 
 # 添加任务
 sc.add(sensor_task)
