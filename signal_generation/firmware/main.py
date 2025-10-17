@@ -9,7 +9,7 @@
 # ======================================== 导入相关模块 =========================================
 
 # 导入硬件相关模块
-from machine import UART, Pin, Timer
+from machine import UART, Pin, I2C, Signal, Timer
 # 导入时间相关模块
 import time
 
@@ -20,15 +20,21 @@ from conf import *
 # 导入lib文件夹下面自定义库
 from libs.scheduler import Scheduler, Task
 # 导入drivers文件夹下面传感器模块驱动库
-from drivers.neopixel_matrix_driver import NeopixelMatrix
-from drivers.serial_imu_driver import IMU
+from drivers.ads1115_driver import ADS1115
+from drivers.pcf8574_driver import PCF8574, SSD1306_I2C
 
 #  导入tasks文件夹下面任务模块
 from tasks.maintenance import task_idle_callback, task_err_callback
 from tasks.maintenance import GC_THRESHOLD_BYTES, ERROR_REPEAT_DELAY_S
-from tasks.imu_task import ImuTask
+from tasks.ads_task import ADSTask
 
 # ======================================== 全局变量 ============================================
+
+# I2C0 时钟频率 (Hz)，默认 100kHz
+I2C_FREQ = 400_000
+# I2C 上 模块的固定通信地址
+SIGNAL_ADDR = 0x49
+SSD1306_ADDR = 0x3d
 
 # ======================================== 功能函数 ============================================
 
@@ -142,6 +148,34 @@ def button_handler(pin: Pin) -> None:
         if ENABLE_DEBUG:
             print("task_sensor resumed")
 
+def i2c_valid(i2c, correct_addrs):
+    # 尝试初始化I2C外设上的传感器模块
+    for attempt in range(1, I2C_INIT_MAX_ATTEMPTS + 1):
+        print("I2C init attempt {}/{}".format(attempt, I2C_INIT_MAX_ATTEMPTS))
+
+        # 扫描 I2C 总线
+        try:
+            addrs = i2c.scan()
+            print("I2C scan result (hex):", [hex(a) for a in addrs])
+        except Exception as e_scan:
+            print("I2C scan failed on attempt {}: {}".format(attempt, e_scan))
+            addrs = []
+
+        # 若找到目标地址则返回
+        if correct_addrs in addrs:
+            return addrs
+
+        # 若还有重试次数，等待后重试
+        if attempt < I2C_INIT_MAX_ATTEMPTS:
+            time.sleep(I2C_INIT_RETRY_DELAY_S)
+    # 如果多次尝试仍失败，则进入 fatal_hang（阻塞并报告）
+    if addrs is None:
+        err_msg = "RCWL9623 init failed after {} attempts. last_err: {}".format(
+            I2C_INIT_MAX_ATTEMPTS, repr(last_err)
+        )
+        # fatal_hang 会阻塞（闪灯并持续在终端输出 msg）
+        fatal_hang(led, err_msg)
+
 # ======================================== 自定义类 ============================================
 
 # ======================================== 初始化配置 ==========================================
@@ -161,14 +195,18 @@ button_pin = board.get_fixed_pin("BUTTON")
 button = Pin(button_pin, Pin.IN, Pin.PULL_UP)
 button.irq(trigger=Pin.IRQ_FALLING, handler=button_handler)
 
-uart0_tx, uart0_rx = board.get_uart_pins(0)
-uart0 = UART(0, baudrate=115200, tx=Pin(uart0_tx), rx=Pin(uart0_rx))
-imu = IMU(uart0)
+# 获取I2C0 I2C1的引脚编号
+i2c0_sda_pin , i2c0_scl_pin = board.get_i2c_pins(0)
+i2c1_sda_pin , i2c1_scl_pin = board.get_i2c_pins(1)
+# 创建I2C实例
+i2c0 = I2C(id = 0, scl = i2c0_scl_pin, sda = i2c0_sda_pin, freq = I2C_FREQ)
+i2c1 = I2C(id = 1, scl = i2c1_scl_pin, sda = i2c1_sda_pin, freq = I2C_FREQ)
 
-pin, _ = board.get_dio_pins(0)
-nm = NeopixelMatrix(8, 8, Pin(pin), 'row', 0.5)
-nm.fill(0)
-nm.show()
+signal = i2c_valid(i2c0, SIGNAL_ADDR)
+ssd1306 = i2c_valid(i2c1, SSD1306_ADDR)
+
+signal = ADS1115(i2c0, signal[0], 1)
+ssd1306 = SSD1306_I2C(i2c1, ssd1306[0], 128, 64, False)
 
 # 输出调试消息
 print("All peripherals initialized.")
@@ -178,11 +216,11 @@ print("GC threshold:", GC_THRESHOLD_BYTES)
 print("Error repeat delay:", ERROR_REPEAT_DELAY_S)
 
 # 创建传感器-蜂鸣器-LED任务实例
-task_obj = ImuTask(imu, nm)
+task_obj = ADSTask(signal, ssd1306)
 sensor_task = Task(task_obj.tick, interval=50,  state=Task.TASK_RUN)
 
 # 创建任务调度器,定时周期为50ms
-sc = Scheduler(Timer(-1), interval=10, task_idle=task_idle_callback, task_err=task_err_callback)
+sc = Scheduler(Timer(-1), interval=20, task_idle=task_idle_callback, task_err=task_err_callback)
 
 # 添加任务
 sc.add(sensor_task)
