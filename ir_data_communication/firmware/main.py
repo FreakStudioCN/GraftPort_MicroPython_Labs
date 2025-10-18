@@ -52,7 +52,7 @@ TX_RX_CLEAR_MS = 5000  # 5 秒后清除对应区域
 # 显示相关
 def _init_display(ssd1306):
     ssd1306.fill(0)
-    ssd1306.text("GXCZD", 45, 0)
+    ssd1306.text("GXCVU", 45, 0)
     ssd1306.text("TX:", 0, 40)
     ssd1306.text("RX:", 0, 52)
     ssd1306.show()
@@ -185,6 +185,7 @@ ssd1306 = i2c_valid(i2c1, SSD1306_ADDR)
 pcf8574 = PCF8574(i2c0, pcf8574[0])
 ssd1306 = SSD1306_I2C(i2c1, ssd1306[0], 128, 64, False)
 
+pcf8574.port = 0xFF  # 设置PCF8574所有引脚为输入模式（上拉）
 _init_display(ssd1306)
 
 # 输出调试消息
@@ -194,13 +195,16 @@ print("All peripherals initialized.")
 while True:
     now = time.ticks_ms()
 
-    tmp = list(bin(pcf8574.port))[2:]
+    tmp = list(f"{pcf8574.port:08b}")
     tmp.reverse()
-    tmp = [i for i, b in enumerate(tmp) if b == '0']
-    if tmp ==  []:
-        tx_index = None
-    else:
-        tx_index = tmp[0]
+    
+    bit_map = {0: 0, 2: 1, 5: 2, 7: 3}
+    print(tmp)
+    
+    tx_index = None
+    for i in bit_map:
+        if tmp[i] == '0':
+            tx_index = bit_map[i]
 
     # 每 3 秒触发一次发送（保持你原来的发送节奏）
     if time.ticks_diff(now, last_tx_time) > 3000:
