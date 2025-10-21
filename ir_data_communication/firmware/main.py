@@ -77,11 +77,6 @@ def _clear_rx_area():
     ssd1306.fill_rect(30, 52, 90, 10, 0)
     ssd1306.show()
 
-# （保留你之前的整块清除函数，若需要一次性清两个区域）
-def _clear_dynamic_area():
-    ssd1306.fill_rect(30, 40, 90, 22, 0)
-    ssd1306.show()
-
 # 外部红外接收回调
 def send_next():
     """发送一个字母并设置发送完成标志（不在此处直接更新 OLED）"""
@@ -93,7 +88,7 @@ def send_next():
 
     # 生成字母并发送
     letter = chr(ord('a') + tx_index)
-    ir_tx.transmit(0x10, tx_index)
+    ir_tx.transmit(0x00, tx_index)
 
     # 不要在中断/回调里更新 OLED，改为设置标志，由主循环处理显示
     tx_letter = letter
@@ -109,7 +104,7 @@ def ir_callback(addr, cmd, repeat):
     print(f"[RX] Address=0x{addr:02X}, Cmd=0x{cmd:02X}, Repeat={repeat}")
 
     # 仅在有效数据时设置标志（不要在回调里直接操作显示）
-    if repeat or addr != 0x10:
+    if repeat or addr != 0x01:
         return
 
     letter = chr(ord('a') + (cmd % 4))
